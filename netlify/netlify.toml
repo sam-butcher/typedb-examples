@@ -1,0 +1,12 @@
+# Netlify detects Next.js and applies its OpenNext adapter automatically; nothing else is needed to build.
+# If you connect the whole typedb-examples repo instead of a copy of this directory, set the base directory to `netlify`.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Shown as prompts by the Deploy to Netlify button. Netlify makes them available to the Next.js server functions.
+[template.environment]
+  TYPEDB_ADDRESS = "HTTP address of your TypeDB Cloud cluster, e.g. https://<cluster>.cloud.typedb.com:8000"
+  TYPEDB_USERNAME = "TypeDB username"
+  TYPEDB_PASSWORD = "TypeDB password"
+  TYPEDB_DATABASE = "Database name, e.g. netlify_demo (run npm run db:setup once to create it)"
