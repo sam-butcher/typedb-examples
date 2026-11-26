@@ -29,6 +29,12 @@ components, a server action and a route handler using the HTTP driver.
 
 - **Stack:** TypeScript (Next.js, Tailwind), `@typedb/driver-http`
 
+### [Next.js on Cloudflare Workers](cloudflare)
+
+The Next.js example deployed to Cloudflare Workers with the OpenNext adapter, with a "Deploy to Cloudflare" button.
+
+- **Stack:** TypeScript (Next.js, Tailwind, OpenNext), `@typedb/driver-http`
+
 ## Small Examples
 
 There are some smaller, though still complex, examples that are fully contained in this repository:

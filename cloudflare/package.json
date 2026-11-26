@@ -1,0 +1,46 @@
+{
+  "name": "typedb-nextjs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "db:setup": "tsx --env-file-if-exists=.env.local scripts/setup.ts"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "1.20.19",
+    "@typedb/driver-http": "3.15.0",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.5",
+    "@types/node": "^22",
+    "@types/react": "^19.3.3",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "wrangler": "4.168.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "TYPEDB_ADDRESS": {
+        "description": "HTTP address of your TypeDB Cloud cluster, e.g. https://<cluster>.cloud.typedb.com:8000"
+      },
+      "TYPEDB_USERNAME": {
+        "description": "TypeDB username"
+      },
+      "TYPEDB_PASSWORD": {
+        "description": "TypeDB password"
+      },
+      "TYPEDB_DATABASE": {
+        "description": "Database name (run npm run db:setup once to create it)"
+      }
+    }
+  }
+}

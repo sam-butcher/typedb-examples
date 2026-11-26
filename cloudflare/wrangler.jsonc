@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "typedb-nextjs",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-09-01",
+  // nodejs_compat is required by the OpenNext adapter.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  // Lets the Worker call itself (used by OpenNext for revalidation). The service name must match "name".
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "typedb-nextjs" }],
+  "observability": { "enabled": true }
+}
