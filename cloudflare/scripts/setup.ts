@@ -1,10 +1,12 @@
-// Creates the database if missing, applies the schema and loads the seed data once.
-// Safe to re-run. Usage: npm run db:setup (reads .env.local).
+// Creates the database if missing, applies the schema and loads the seed data once. Safe to re-run.
+// Usage: npm run db:setup. Reads the secrets from .dev.vars. The database name defaults to "cloudflare_demo",
+// matching wrangler.jsonc. If you change it there, run with TYPEDB_DATABASE=<name> npm run db:setup.
 import { readFile } from "node:fs/promises";
 import { isApiErrorResponse } from "@typedb/driver-http";
-import { database, getDriver, unwrap, write } from "../lib/typedb";
+import { TypeDB, unwrap } from "../src/typedb";
 
-const driver = getDriver();
+const db = new TypeDB(process.env);
+const { driver, database } = db;
 
 const existing = await driver.getDatabase(database);
 if (isApiErrorResponse(existing)) {
@@ -25,6 +27,6 @@ const anyone = unwrap(await driver.oneShotQuery("match $p isa person; limit 1;",
 if (anyone.answerType === "conceptRows" && anyone.answers.length > 0) {
   console.log("Data already present; skipped typedb/seed.tql.");
 } else {
-  await write(await readFile(new URL("../typedb/seed.tql", import.meta.url), "utf8"));
+  await db.write(await readFile(new URL("../typedb/seed.tql", import.meta.url), "utf8"));
   console.log("Loaded typedb/seed.tql.");
 }

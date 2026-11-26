@@ -1,9 +1,10 @@
-# TypeDB + Next.js on Cloudflare Workers
+# TypeDB on Cloudflare Workers
 
-A minimal Next.js (App Router) app that lists people and their interests, stored in TypeDB Cloud and queried over
-TypeDB's HTTP API with [`@typedb/driver-http`](https://typedb.com/docs/reference/typedb-http-drivers/typescript/).
-It runs on Cloudflare Workers through the [OpenNext Cloudflare adapter](https://opennext.js.org/cloudflare).
-It is a variant of the [Vercel example](../vercel). The app code is the same, and only the platform config differs.
+A minimal Cloudflare Worker that lists people and their interests, stored in TypeDB Cloud and queried over TypeDB's
+HTTP API with [`@typedb/driver-http`](https://typedb.com/docs/reference/typedb-http-drivers/typescript/). The driver
+depends only on `fetch`, so it runs natively in Workers, with no adapter and no Node.js compatibility flag. The app
+uses [Hono](https://hono.dev) for routing and its built-in JSX for server-rendered HTML. It needs no client-side
+JavaScript.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/typedb/typedb-examples/tree/master/cloudflare)
 
@@ -18,49 +19,65 @@ It is a variant of the [Vercel example](../vercel). The app code is the same, an
 ## Setup
 
 ```sh
-cp .env.example .env.local   # fill in the four TYPEDB_* values
+cp .dev.vars.example .dev.vars   # fill in TYPEDB_ADDRESS, TYPEDB_USERNAME, TYPEDB_PASSWORD
 npm i
-npm run db:setup             # creates the database, applies the schema, loads the seed data
-npm run dev                  # Next.js dev server on Node.js, http://localhost:3000
-npm run preview              # builds for Workers and runs it locally in workerd, http://localhost:8787
+npm run db:setup                 # creates the database, applies the schema, loads the seed data
+npm run dev                      # wrangler dev, http://localhost:8787
 ```
 
 `db:setup` is idempotent: it creates the database only if it is missing, re-applies the schema (a no-op when it is
 unchanged) and loads `typedb/seed.tql` only when there are no people yet.
 
+`npm run dev` runs the Worker in `workerd`, the same runtime as production.
+
 ## How it works
 
-The app code is identical to the Vercel example:
+**`src/typedb.ts`** is the only file that talks to TypeDB.
+- The `TypeDB` class takes the Worker's bindings, creates a `TypeDBHttpDriver`, and throws a clear error if a
+  secret is missing.
+- `read(tql, given?)` runs a `match … fetch` query with `oneShotQuery(…, "read")` and returns its JSON documents.
+- `write(tql, given?)` runs one write query and commits it.
+- `writeAll(steps)` runs several queries in one write transaction (`openTransaction` → `query` × n →
+  `commitTransaction`), so they commit together or not at all.
+- `getTypeDB(env)` keeps one client per isolate, so warm requests reuse the driver and its sign-in token.
 
-- **`lib/typedb.ts`** creates one driver per Worker isolate and exposes `read`, `write` and `writeAll` helpers.
-- **`app/page.tsx`** is a server component that lists people with one nested `match … fetch`.
-- **`app/actions.ts`** has the `addPerson` server action, which inserts a person and links their topics in one transaction.
-- **`app/people/[name]/page.tsx`** is a read whose parameter comes from the URL.
-- **`app/api/health/route.ts`** is a connectivity check.
+**`src/index.tsx`** is the Hono app:
 
-See the [Vercel example's README](../vercel/README.md#how-it-works) for a walkthrough.
-
-These files are specific to Cloudflare:
-
-| File | Purpose |
+| Route | What it does |
 | --- | --- |
-| `wrangler.jsonc` | Worker config. `nodejs_compat` is required by OpenNext, `main` and `assets` point at the OpenNext build output, and `WORKER_SELF_REFERENCE` is a service binding that OpenNext uses. |
-| `open-next.config.ts` | OpenNext config. It's empty because every page is rendered per request, so no incremental cache is needed. |
-| `public/_headers` | Long-lived caching for Next.js's hashed static assets. |
-| `package.json` | Adds the `preview` and `deploy` scripts. The `cloudflare.bindings` block gives the Deploy button a description for each variable. |
+| `GET /` | One nested `match … fetch` returns each person with their topics. The page renders the list and an HTML form. |
+| `POST /people` | Validates the form, then inserts the person and links each chosen topic in one transaction. On success it redirects back to `/` (post/redirect/get). On failure it re-renders the page with the error, for example when the name already exists and breaks the `@key` constraint. |
+| `GET /people/:name` | A read whose parameter comes from the URL. |
+| `GET /api/health` | `health()` + `version()`, a quick connectivity check. |
+
+The page's main query:
+
+```typeql
+match $p isa person, has name $n;
+sort $n;
+fetch {
+  "name": $n,
+  "topics": [ match interest (fan: $p, subject: $t); fetch { "name": $t.name }; ]
+};
+```
+
+**`wrangler.jsonc`** is the Worker config. `TYPEDB_DATABASE` is a plain var, set to `cloudflare_demo` by default.
+The address, username and password are secrets, so they aren't in this file.
+
+**`scripts/setup.ts`** runs in Node.js, reads `.dev.vars`, and uses the same `TypeDB` class as the Worker.
 
 ## Deploy to Cloudflare
 
 **With the button:** click **Deploy to Cloudflare** above. Cloudflare copies this directory into a new repo in your
-GitHub or GitLab account, asks for the four `TYPEDB_*` values (listed in `.env.example`), and sets up Workers Builds
-so that every push redeploys.
+GitHub or GitLab account, asks for the three secrets (listed in `.dev.vars.example`), and sets up Workers Builds so
+that every push redeploys.
 
 **From your machine:**
 
 ```sh
 npx wrangler login
 npm run deploy
-npx wrangler secret put TYPEDB_PASSWORD    # repeat for TYPEDB_ADDRESS, TYPEDB_USERNAME, TYPEDB_DATABASE
+npx wrangler secret put TYPEDB_ADDRESS    # repeat for TYPEDB_USERNAME and TYPEDB_PASSWORD
 ```
 
 Then run `npm run db:setup` once against the same cluster, and open `/api/health` on your `*.workers.dev` URL. It
@@ -68,24 +85,24 @@ should return `{"ok":true,"typedb":{…}}`.
 
 ## Notes
 
-- **Environment variables.** At runtime, OpenNext copies the Worker's vars and secrets into `process.env`, so
-  `lib/typedb.ts` reads them as it would anywhere else. When you build locally, OpenNext also bundles your
-  `.env.local` values into the Worker as a fallback. Values set on the Worker take precedence. To keep local
-  credentials out of the bundle, deploy with the button or Workers Builds, or move `.env.local` aside before
-  running `npm run deploy`.
-- **Runtime.** OpenNext runs Next.js in the Workers runtime with Node.js compatibility. It doesn't support
-  `export const runtime = "edge"`, which this app doesn't use. The driver only needs `fetch`. Don't set its
-  `tls.rootCAPath` option, because it needs Node's `https` module, which Workers doesn't provide. TypeDB Cloud's
-  certificates are publicly trusted, so you don't need it.
+- **Secrets stay in the Worker.** Credentials are Worker secrets and are only read on the server. The pages are
+  plain HTML, so nothing about TypeDB reaches the browser.
+- **No string-built queries.** User input reaches TypeQL only through `given` rows. Queries declare their inputs
+  (`given $name: string;`), and the values travel separately: `read(query, [{ name }])`. This requires TypeDB 3.15+.
 - **Cold starts.** Each new isolate signs in once, on its first query. Later requests on a warm isolate reuse the
   token.
-- **No string-built queries.** User input reaches TypeQL only through `given` rows (requires TypeDB 3.15+).
-- **Size limits.** The bundled Worker must fit Cloudflare's script size limit, which is 3 MiB compressed on the Free
-  plan and 10 MiB on paid plans. This app is about 1.1 MiB compressed.
+- **One transaction per request.** `read` and `write` use one-shot queries, which open a transaction, run the query,
+  commit if needed and close it in a single HTTP call. `writeAll` is for the case where several writes must be
+  atomic.
+- **TLS.** Don't set the driver's `tls.rootCAPath` option, because it needs Node's `https` module, which Workers
+  doesn't provide. TypeDB Cloud's certificates are publicly trusted, so you don't need it.
+- **Types.** `npm run typecheck` generates the Workers runtime types (`worker-configuration.d.ts`, gitignored) with
+  `wrangler types`, then runs `tsc`.
+- **Small bundle.** The deployed Worker is about 30 KiB gzipped.
 
 ## Links
 
-- [OpenNext Cloudflare adapter](https://opennext.js.org/cloudflare)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/) and [Hono](https://hono.dev)
 - [TypeQL reference](https://typedb.com/docs/typeql-reference/)
 - [TypeDB HTTP API reference](https://typedb.com/docs/reference/typedb-http-api/)
 - [TypeScript HTTP driver](https://typedb.com/docs/reference/typedb-http-drivers/typescript/)

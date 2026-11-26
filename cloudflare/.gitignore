@@ -1,10 +1,6 @@
 node_modules/
-.next/
-.open-next/
 .wrangler/
-next-env.d.ts
-*.tsbuildinfo
-.env*.local
-.env
 .dev.vars*
 !.dev.vars.example
+*.tsbuildinfo
+worker-configuration.d.ts

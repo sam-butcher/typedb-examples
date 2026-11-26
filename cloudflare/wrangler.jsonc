@@ -1,12 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "typedb-nextjs",
-  "main": ".open-next/worker.js",
+  "name": "typedb-cloudflare-worker",
+  "main": "src/index.tsx",
   "compatibility_date": "2025-09-01",
-  // nodejs_compat is required by the OpenNext adapter.
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
-  // Lets the Worker call itself (used by OpenNext for revalidation). The service name must match "name".
-  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "typedb-nextjs" }],
+  // Plain (non-secret) configuration. TYPEDB_ADDRESS, TYPEDB_USERNAME and TYPEDB_PASSWORD are secrets:
+  // put them in .dev.vars locally and set them with `wrangler secret put` (or the Deploy button) in production.
+  "vars": {
+    "TYPEDB_DATABASE": "cloudflare_demo"
+  },
   "observability": { "enabled": true }
 }

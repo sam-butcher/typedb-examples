@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local development. In production, set these as Worker secrets.
+TYPEDB_ADDRESS=https://<cluster>.cloud.typedb.com:8000
+TYPEDB_USERNAME=admin
+TYPEDB_PASSWORD=
