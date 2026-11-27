@@ -1,10 +1,12 @@
 import { Hono } from "hono";
+import { isApiError } from "@typedb/driver-http";
 import type { FC, PropsWithChildren } from "hono/jsx";
-import { getTypeDB, unwrap, type TypeDBEnv } from "./typedb";
+import { errorMessage, getTypeDB, unwrap, type TypeDBEnv } from "./typedb";
 
 const app = new Hono<{ Bindings: TypeDBEnv }>();
 
 type Person = { name: string; topics: { name: string }[] };
+type Topic = { name: string };
 
 const Layout: FC<PropsWithChildren<{ title?: string }>> = ({ title, children }) => (
   <html lang="en">
@@ -32,21 +34,31 @@ const Layout: FC<PropsWithChildren<{ title?: string }>> = ({ title, children }) 
 
 // Lists everyone with their topics, plus the form to add a person. `error` is set when a submission fails.
 async function home(env: TypeDBEnv, error?: string) {
-  const db = getTypeDB(env);
-  const [people, topics] = await Promise.all([
-    db.read<Person>(`
-      match $p isa person, has name $n;
-      sort $n;
-      fetch {
-        "name": $n,
-        "topics": [
-          match interest (fan: $p, subject: $t);
-          fetch { "name": $t.name };
-        ]
-      };
-    `),
-    db.read<{ name: string }>(`match $t isa topic, has name $n; sort $n; fetch { "name": $n };`),
-  ]);
+  let people: Person[], topics: Topic[];
+  try {
+    const db = getTypeDB(env);
+    [people, topics] = await Promise.all([
+      db.read<Person>(`
+        match $p isa person, has name $n;
+        sort $n;
+        fetch {
+          "name": $n,
+          "topics": [
+            match interest (fan: $p, subject: $t);
+            fetch { "name": $t.name };
+          ]
+        };
+      `),
+      db.read<Topic>(`match $t isa topic, has name $n; sort $n; fetch { "name": $n };`),
+    ]);
+  } catch (e) {
+    // Show TypeDB's error rather than a generic error page, e.g. when the database hasn't been set up yet.
+    return (
+      <Layout>
+        <pre class="error" style="white-space: pre-wrap">{errorMessage(e)}</pre>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -109,7 +121,7 @@ app.post("/people", async (c) => {
         : []),
     ]);
   } catch (e) {
-    if (e instanceof Error && e.message.includes("[CNT9]")) {
+    if (isApiError(e) && e.code === "CNT9") {
       return c.html(await home(c.env, `"${name}" already exists.`), 409);
     }
     throw e;
@@ -159,7 +171,7 @@ app.get("/api/health", async (c) => {
     unwrap(await driver.health());
     return c.json({ ok: true, typedb: unwrap(await driver.version()) });
   } catch (e) {
-    return c.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, 503);
+    return c.json({ ok: false, error: errorMessage(e) }, 503);
   }
 });
 

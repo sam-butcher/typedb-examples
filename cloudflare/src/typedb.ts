@@ -1,6 +1,6 @@
 // The only module that talks to TypeDB. It works in the Worker (bindings from `env`) and in Node.js
 // (scripts/setup.ts passes `process.env`), because the HTTP driver only needs `fetch`.
-import { TypeDBHttpDriver, isApiErrorResponse, type ApiResponse, type ConceptDocument, type GivenRows } from "@typedb/driver-http";
+import { TypeDBHttpDriver, isApiError, isApiErrorResponse, type ApiResponse, type ConceptDocument, type GivenRows } from "@typedb/driver-http";
 
 /** Worker bindings: three secrets plus a plain var (see wrangler.jsonc and .dev.vars.example). */
 export interface TypeDBEnv {
@@ -10,10 +10,19 @@ export interface TypeDBEnv {
   TYPEDB_DATABASE?: string;
 }
 
-/** Returns the success payload of a driver call, or throws the server's error. */
+/**
+ * Returns the success payload of a driver call, or throws the server's error: `{ code, message }`.
+ * Catch it with the driver's `isApiError(e)` and check `e.code`, e.g. `"CNT9"` for a constraint violation.
+ * It's thrown as an `Error` carrying the same fields, because Hono's `onError` only handles `Error`s.
+ */
 export function unwrap<T extends {} | null>(res: ApiResponse<T>): T {
-  if (isApiErrorResponse(res)) throw new Error(res.err?.message ?? JSON.stringify(res.err));
+  if (isApiErrorResponse(res)) throw Object.assign(new Error(res.err.message), res.err);
   return res.ok;
+}
+
+/** The message of anything `unwrap` or this module can throw: a TypeDB error, or an ordinary `Error`. */
+export function errorMessage(e: unknown): string {
+  return isApiError(e) || e instanceof Error ? e.message : String(e);
 }
 
 export class TypeDB {
