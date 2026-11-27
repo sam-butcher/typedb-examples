@@ -2,6 +2,7 @@
 // Import it from server components, route handlers, server actions and scripts — never from a client component.
 import {
   TypeDBHttpDriver,
+  isApiError,
   isApiErrorResponse,
   type ApiResponse,
   type ConceptDocument,
@@ -32,10 +33,18 @@ export function getDriver(): TypeDBHttpDriver {
   return driver;
 }
 
-/** Returns the success payload of a driver call, or throws the server's error. */
+/**
+ * Returns the success payload of a driver call, or throws the server's error as it is: `{ code, message }`.
+ * Catch it with the driver's `isApiError(e)` and check `e.code`, e.g. `"CNT9"` for a constraint violation.
+ */
 export function unwrap<T extends {} | null>(res: ApiResponse<T>): T {
-  if (isApiErrorResponse(res)) throw new Error(res.err?.message ?? JSON.stringify(res.err));
+  if (isApiErrorResponse(res)) throw res.err;
   return res.ok;
+}
+
+/** The message of anything `unwrap` or this module can throw: a TypeDB error, or an ordinary `Error`. */
+export function errorMessage(e: unknown): string {
+  return isApiError(e) || e instanceof Error ? e.message : String(e);
 }
 
 // User input never gets spliced into TypeQL. Queries declare inputs with a `given` clause

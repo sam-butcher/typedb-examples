@@ -11,9 +11,10 @@ It is a variant of the [Vercel example](../vercel) for Netlify. The app code is 
 
 - Node.js 22+
 - A Netlify account
-- A free TypeDB Cloud cluster ([sign up](https://cloud.typedb.com)). From the cluster page you need:
-  - its HTTP address, e.g. `https://<cluster>.cloud.typedb.com:8000`
-  - a username and password
+- TypeDB >= 3.15
+  - You can deploy a free TypeDB Cloud cluster ([sign up](https://cloud.typedb.com)). From the cluster page you need:
+    - its HTTP address, e.g. `https://<cluster>.cloud.typedb.com:8000`
+    - a username and password
 
 ## Setup
 
